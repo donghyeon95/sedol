@@ -21,67 +21,9 @@ public class VideoStreamWebSocketController extends BinaryWebSocketHandler {
 	private final Set<WebSocketSession> sessions = new CopyOnWriteArraySet<>();
 	private volatile boolean isStreaming = false;
 
-	private final String MEDIA_PATH = "//wsl.localhost/Ubuntu/tmp/hls/test.mp4";
+	private final String MEDIA_PATH = "//wsl.localhost/Ubuntu/tmp/hls/1080/latest_213123.mp4";
 
 	private static final int CHUNK_SIZE = 8192; // 청크 크기 (8KB)
-
-	// @Override
-	// public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-	// 	sessions.add(session);
-	// 	System.out.println("[WebSocket] Connection established: " + session.getId());
-	// 	startStreaming(session, MEDIA_PATH); // MP4 파일 경로
-	// }
-	//
-	// @Override
-	// public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-	// 	sessions.remove(session);
-	// 	System.out.println("[WebSocket] Connection closed: " + session.getId());
-	// }
-	//
-	// @Override
-	// public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-	// 	System.err.println("[WebSocket] Transport error: " + exception.getMessage());
-	// 	sessions.remove(session);
-	// }
-	//
-	// private void startStreaming(WebSocketSession session, String filePath) {
-	// 	new Thread(() -> {
-	// 		try (FileInputStream fis = new FileInputStream(filePath)) {
-	// 			byte[] buffer = new byte[CHUNK_SIZE];
-	// 			int bytesRead;
-	//
-	// 			// 초기화 세그먼트 읽기
-	// 			int initSegmentSize = 1000; // 초기화 세그먼트 크기 (적절히 조정)
-	// 			byte[] initSegment = new byte[initSegmentSize];
-	// 			fis.read(initSegment, 0, initSegmentSize);
-	// 			sendChunk(session, ByteBuffer.wrap(initSegment)); // 초기화 세그먼트 전송
-	//
-	// 			// 나머지 데이터 청크 전송
-	// 			while ((bytesRead = fis.read(buffer)) != -1) {
-	// 				ByteBuffer chunk = ByteBuffer.wrap(buffer, 0, bytesRead);
-	// 				sendChunk(session, chunk);
-	// 			}
-	//
-	// 			System.out.println("[WebSocket] Streaming completed.");
-	//
-	// 		} catch (IOException e) {
-	// 			System.err.println("[WebSocket] Error streaming file: " + e.getMessage());
-	// 		}
-	// 	}).start();
-	// }
-	//
-	// private void sendChunk(WebSocketSession session, ByteBuffer chunk) {
-	// 	if (session.isOpen()) {
-	// 		try {
-	// 			session.sendMessage(new BinaryMessage(chunk));
-	// 			System.out.println("[WebSocket] Sent chunk of size: " + chunk.remaining() + " bytes");
-	// 		} catch (IOException e) {
-	// 			System.err.println("[WebSocket] Error sending chunk: " + e.getMessage());
-	// 		}
-	// 	} else {
-	// 		System.err.println("[WebSocket] Session is closed. Skipping chunk.");
-	// 	}
-	// }
 
 	@Override
 	public void afterConnectionEstablished(WebSocketSession session) throws Exception {
@@ -111,6 +53,7 @@ public class VideoStreamWebSocketController extends BinaryWebSocketHandler {
 		System.err.println("[WebSocket] Transport error: " + exception.getMessage());
 		sessions.remove(session);
 	}
+
 	private void startFFmpegStream() throws InterruptedException {
 		new Thread(() -> {
 			Process ffmpegProcess = null;
@@ -145,7 +88,8 @@ public class VideoStreamWebSocketController extends BinaryWebSocketHandler {
 							System.out.write(buffer, 0, bytesRead); // 에러 로그 출력
 							System.out.println("error");
 						}
-					} catch (IOException ignored) {}
+					} catch (IOException ignored) {
+					}
 				}).start();
 
 				// FFmpeg 출력 데이터 처리
@@ -190,78 +134,6 @@ public class VideoStreamWebSocketController extends BinaryWebSocketHandler {
 		return header.contains("ftyp") || header.contains("moov");
 	}
 
-	// private void startFFmpegStream() throws InterruptedException {
-	// 	new Thread(() -> {
-	// 		Process ffmpegProcess = null;
-	// 		try {
-	// 			ProcessBuilder processBuilder = new ProcessBuilder(
-	// 				"wsl",
-	// 				"ffmpeg",
-	// 				"-i", "rtmp://localhost/live/213123", // RTMP 입력
-	// 				"-c:v", "libx264", // 비디오 재인코딩
-	// 				"-c:a", "aac", // 오디오 재인코딩
-	// 				"-movflags", "frag_keyframe+empty_moov", // Fragmented MP4 형식
-	// 				"-use_wallclock_as_timestamps", "1",
-	// 				"-fflags", "+genpts",
-	// 				"-vsync", "2",
-	// 				"-vf", "fps=30",
-	// 				"-f", "mp4",
-	// 				"-segment_time", "1", // 1초마다 fragment 생성
-	// 				"-segment_format", "mp4",
-	// 				"pipe:1" // FFmpeg 출력을 표준 출력으로 설정
-	// 			);
-	//
-	// 			// processBuilder.redirectErrorStream(true);
-	// 			processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
-	// 			ffmpegProcess = processBuilder.start();
-	//
-	// 			// FFmpeg 에러 로그 출력
-	// 			InputStream errorStream = ffmpegProcess.getErrorStream();
-	// 			new Thread(() -> {
-	// 				try (InputStream es = errorStream) {
-	// 					byte[] buffer = new byte[1024];
-	// 					int bytesRead;
-	// 					while ((bytesRead = es.read(buffer)) != -1) {
-	// 						System.out.write(buffer, 0, bytesRead); // 에러 로그 출력
-	// 					}
-	// 				} catch (IOException ignored) {}
-	// 			}).start();
-	//
-	// 			// FFmpeg 출력 데이터 처리
-	// 			InputStream inputStream = ffmpegProcess.getInputStream();
-	// 			byte[] buffer = new byte[8192];
-	// 			int bytesRead;
-	//
-	// 			boolean isInitializationSent = false;
-	// 			while ((bytesRead = inputStream.read(buffer)) != -1) {
-	// 				ByteBuffer byteBuffer = ByteBuffer.wrap(buffer, 0, bytesRead);
-	//
-	// 				// 초기화 세그먼트 검증
-	// 				// if (!isInitializationSent) {
-	// 				// 	if (containsInitializationSegment(buffer, bytesRead)) {
-	// 				// 		isInitializationSent = true;
-	// 				// 		System.out.println("[FFmpeg] Initialization segment detected and sent.");
-	// 				// 	} else {
-	// 				// 		System.err.println("[FFmpeg] Initialization segment not found in the first chunk.");
-	// 				// 		break;
-	// 				// 	}
-	// 				// }
-	//
-	// 				// WebSocket 클라이언트로 데이터 전송
-	// 				broadcast(byteBuffer);
-	// 			}
-	//
-	// 		} catch (Exception e) {
-	// 			System.err.println("[FFmpeg] Error: " + e.getMessage());
-	// 		} finally {
-	// 			if (ffmpegProcess != null) {
-	// 				ffmpegProcess.destroy();
-	// 			}
-	// 		}
-	// 	}).start();
-	// 	Thread.sleep(33);
-	// }
-
 	private void broadcast(ByteBuffer data) {
 		for (WebSocketSession session : sessions) {
 			if (session.isOpen()) {
@@ -279,168 +151,4 @@ public class VideoStreamWebSocketController extends BinaryWebSocketHandler {
 		}
 	}
 
-	// private boolean containsInitializationSegment(byte[] buffer, int length) {
-	// 	// "ftyp" 박스 또는 "moov" 박스를 확인
-	// 	String header = new String(buffer, 0, Math.min(length, 64)); // 첫 64바이트만 확인
-	// 	System.out.println("[FFmpeg] Header content: " + header); // 헤더 로그 출력
-	// 	return header.contains("ftyp") || header.contains("moov");
-	// }
 }
-
-// @Controller
-// public class VideoStreamWebSocketController extends BinaryWebSocketHandler {
-//
-// 	private final Set<WebSocketSession> sessions = new CopyOnWriteArraySet<>();
-// 	private volatile boolean isStreaming = false;
-//
-// 	private static final int CHUNK_SIZE = 1024 * 100000; // 충분한 버퍼 크기
-//
-// 	@Override
-// 	public void afterConnectionEstablished(WebSocketSession session) throws Exception {
-// 		sessions.add(session);
-// 		System.out.println("[WebSocket] Connection established: " + session.getId());
-//
-// 		if (!isStreaming) {
-// 			isStreaming = true;
-// 			startFFmpegStream();
-// 		}
-// 	}
-//
-// 	@Override
-// 	public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-// 		sessions.remove(session);
-// 		System.out.println("[WebSocket] Connection closed: " + session.getId());
-//
-// 		if (sessions.isEmpty()) {
-// 			isStreaming = false;
-// 		}
-// 	}
-//
-// 	@Override
-// 	public void handleTransportError(WebSocketSession session, Throwable exception) throws Exception {
-// 		System.err.println("[WebSocket] Transport error: " + exception.getMessage());
-// 		sessions.remove(session);
-// 	}
-//
-// 	private void startFFmpegStream() throws InterruptedException {
-// 		new Thread(() -> {
-// 			Process ffmpegProcess = null;
-// 			try {
-// 				// FFmpeg 프로세스 시작
-// 				ProcessBuilder processBuilder = new ProcessBuilder(
-// 					"wsl",
-// 					"ffmpeg",
-// 					"-i", "rtmp://localhost/live/213123", // RTMP 입력
-// 					"-c:v", "libx264", // 비디오 재인코딩
-// 					"-c:a", "aac",    // 오디오 재인코딩
-// 					"-movflags", "frag_keyframe+empty_moov", // Fragmented MP4 형식
-// 					"-use_wallclock_as_timestamps", "1",
-// 					"-fflags", "+genpts",
-// 					"-vsync", "2",
-// 					"-vf", "fps=30",
-// 					"-f", "mp4",
-// 					"pipe:1" // FFmpeg 출력을 파이프 처리
-// 				);
-//
-// 				processBuilder.redirectError(ProcessBuilder.Redirect.DISCARD);
-// 				ffmpegProcess = processBuilder.start();
-//
-// 				InputStream inputStream = ffmpegProcess.getInputStream();
-// 				byte[] buffer = new byte[CHUNK_SIZE];
-// 				int bytesRead;
-//
-// 				ByteArrayOutputStream moofBuffer = new ByteArrayOutputStream();
-// 				ByteArrayOutputStream mdatBuffer = new ByteArrayOutputStream();
-//
-// 				boolean isInitializationSent = false;
-//
-// 				while ((bytesRead = inputStream.read(buffer)) != -1) {
-// 					// 데이터를 버퍼에 쓰기
-// 					byte[] currentData = new byte[bytesRead];
-// 					System.arraycopy(buffer, 0, currentData, 0, bytesRead);
-//
-// 					// moof나 mdat가 시작되었는지 체크
-// 					if (containsMoof(currentData)) {
-// 						moofBuffer.write(currentData);
-// 					} else if (containsMdat(currentData)) {
-// 						mdatBuffer.write(currentData);
-// 					}
-//
-// 					// `moof`와 `mdat`가 완전한 단위인지 확인
-// 					if (isCompleteMoof(moofBuffer)) {
-// 						ByteBuffer moofData = ByteBuffer.wrap(moofBuffer.toByteArray());
-// 						sendMoof(moofData);
-// 						moofBuffer.reset(); // moof 버퍼 리셋
-// 						System.out.println("[WebSocket] Sent complete moof.");
-// 					}
-//
-// 					if (isCompleteMdat(mdatBuffer)) {
-// 						ByteBuffer mdatData = ByteBuffer.wrap(mdatBuffer.toByteArray());
-// 						sendMdat(mdatData);
-// 						mdatBuffer.reset(); // mdat 버퍼 리셋
-// 						System.out.println("[WebSocket] Sent complete mdat.");
-// 					}
-// 				}
-//
-// 			} catch (Exception e) {
-// 				System.err.println("[FFmpeg] Error: " + e.getMessage());
-// 			} finally {
-// 				if (ffmpegProcess != null) {
-// 					ffmpegProcess.destroy();
-// 				}
-// 			}
-// 		}).start();
-// 		Thread.sleep(33); // 30fps
-// 	}
-//
-// 	private boolean containsMoof(byte[] data) {
-// 		// `moof`가 포함되었는지 확인
-// 		String dataStr = new String(data);
-// 		return dataStr.contains("moof");
-// 	}
-//
-// 	private boolean containsMdat(byte[] data) {
-// 		// `mdat`가 포함되었는지 확인
-// 		String dataStr = new String(data);
-// 		return dataStr.contains("mdat");
-// 	}
-//
-// 	private boolean isCompleteMoof(ByteArrayOutputStream moofBuffer) {
-// 		// moof가 완전한지 확인
-// 		byte[] data = moofBuffer.toByteArray();
-// 		return new String(data).contains("moof") && data.length > 0;
-// 	}
-//
-// 	private boolean isCompleteMdat(ByteArrayOutputStream mdatBuffer) {
-// 		// mdat가 완전한지 확인
-// 		byte[] data = mdatBuffer.toByteArray();
-// 		return new String(data).contains("mdat") && data.length > 0;
-// 	}
-//
-// 	private void sendMoof(ByteBuffer moofData) {
-// 		// `moof`만 전송
-// 		broadcast(moofData);
-// 	}
-//
-// 	private void sendMdat(ByteBuffer mdatData) {
-// 		// `mdat`만 전송
-// 		broadcast(mdatData);
-// 	}
-//
-// 	private void broadcast(ByteBuffer data) {
-// 		for (WebSocketSession session : sessions) {
-// 			if (session.isOpen()) {
-// 				synchronized (session) {
-// 					try {
-// 						session.sendMessage(new BinaryMessage(data));
-// 						System.out.println("[WebSocket] Sent data size: " + data.remaining() + " bytes");
-// 					} catch (IOException e) {
-// 						System.err.println("[WebSocket] Broadcast error: " + e.getMessage());
-// 					}
-// 				}
-// 			} else {
-// 				System.err.println("[WebSocket] Session is closed.");
-// 			}
-// 		}
-// 	}
-// }
