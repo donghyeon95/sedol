@@ -156,7 +156,7 @@ public class StreamingService {
 			if (Boolean.FALSE.equals(auth))  throw new ResponseStatusException(HttpStatus.BAD_REQUEST, AuthErrorCode.PERMISSION_DENIED+"");
 		}
 
-
+		// FIXME Stream으로 읽어서 Stream으로 보내주도록.
 		File hlsFile = Paths.get(ROOT_FILE_PATH, quality, fileName).toFile();
 		Resource resource = new FileSystemResource(hlsFile);
 		String contentType = fileName.endsWith(".m3u8") ?
